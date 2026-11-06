@@ -1,0 +1,1387 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Goa Family Self-Drive Trip Route Simulator</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Leaflet CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            ocean: {
+              50: '#f0f9ff',
+              400: '#38bdf8',
+              500: '#0ea5e9',
+              600: '#0284c7',
+              900: '#0c4a6e',
+            },
+            amberGold: '#f59e0b',
+            emeraldGoa: '#10b981',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: rgba(15, 23, 42, 0.6);
+    }
+    ::-webkit-scrollbar-thumb {
+      background: rgba(56, 189, 248, 0.3);
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(56, 189, 248, 0.6);
+    }
+    
+    /* Map Container Styling */
+    .leaflet-container {
+      background: #0b1329 !important;
+      font-family: inherit;
+    }
+    .leaflet-popup-content-wrapper {
+      background: rgba(15, 23, 42, 0.95) !important;
+      backdrop-filter: blur(8px);
+      color: #f8fafc !important;
+      border: 1px solid rgba(56, 189, 248, 0.3) !important;
+      border-radius: 12px !important;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5) !important;
+    }
+    .leaflet-popup-tip {
+      background: rgba(15, 23, 42, 0.95) !important;
+    }
+    
+    /* Glowing Car Marker */
+    .car-marker-container {
+      position: relative;
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .car-marker-pulse {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      background: rgba(56, 189, 248, 0.4);
+      animation: pulse-ring 1.8s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+    .car-marker-body {
+      position: relative;
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, #38bdf8, #0284c7);
+      border: 2px solid #ffffff;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 15px rgba(56, 189, 248, 0.8);
+      color: white;
+    }
+    /* Resting / Activity state styling */
+    .car-marker-container.resting .car-marker-pulse {
+      background: rgba(16, 185, 129, 0.5);
+      animation: pulse-ring 2.2s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+    }
+    .car-marker-container.resting .car-marker-body {
+      background: linear-gradient(135deg, #10b981, #047857);
+      box-shadow: 0 0 18px rgba(16, 185, 129, 0.9);
+    }
+    @keyframes pulse-ring {
+      0% { transform: scale(0.6); opacity: 0.9; }
+      100% { transform: scale(1.6); opacity: 0; }
+    }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 font-sans min-h-screen flex flex-col overflow-x-hidden selection:bg-ocean-500 selection:text-white">
+
+  <!-- Top App Navigation Bar -->
+  <header class="border-b border-slate-800 bg-slate-900/90 backdrop-blur-md sticky top-0 z-50 px-4 py-3 sm:px-6">
+    <div class="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-emerald-400 flex items-center justify-center shadow-lg shadow-sky-500/20">
+          <i data-lucide="compass" class="w-6 h-6 text-slate-950 stroke-[2.5]"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-base sm:text-lg tracking-tight bg-gradient-to-r from-sky-400 via-teal-300 to-emerald-400 bg-clip-text text-transparent">
+              Goa Family Route Simulator
+            </h1>
+            <span class="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-sky-950 border border-sky-600/40 text-sky-300">Self-Drive 4 PAX</span>
+          </div>
+          <p class="text-xs text-slate-400 flex items-center gap-1.5 mt-0.5">
+            <i data-lucide="map-pin" class="w-3 h-3 text-sky-400"></i>
+            Base: <span class="text-slate-300 font-medium">FabHotel Comfort Stays, Miramar, Panaji</span>
+          </p>
+        </div>
+      </div>
+
+      <!-- Quick Stats Badges -->
+      <div class="flex items-center gap-2 sm:gap-3 text-xs">
+        <div class="bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-lg flex items-center gap-2">
+          <i data-lucide="shield-check" class="w-4 h-4 text-emeraldGoa"></i>
+          <span class="text-slate-300 font-medium">Zero Backtracking Route</span>
+        </div>
+        <div class="bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-lg flex items-center gap-2">
+          <i data-lucide="clock" class="w-4 h-4 text-amberGold"></i>
+          <span class="text-slate-300 font-medium">+15m Buffer Per Leg</span>
+        </div>
+        <div class="bg-slate-800/80 border border-slate-700/60 px-3 py-1.5 rounded-lg hidden sm:flex items-center gap-2">
+          <i data-lucide="route" class="w-4 h-4 text-sky-400"></i>
+          <span class="text-slate-300 font-medium">True Highway Geometry</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Dashboard -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-3 sm:p-5 flex flex-col gap-4">
+    
+    <!-- Day Selection Tabs -->
+    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-1.5 flex flex-wrap gap-1.5 sm:gap-2 shadow-xl backdrop-blur-md" id="dayTabsContainer">
+      <!-- Tabs injected dynamically by JS -->
+    </div>
+
+    <!-- Map & HUD Container -->
+    <div class="grid grid-cols-1 lg:grid-cols-12 gap-4">
+      
+      <!-- Interactive Leaflet Map Column (7 cols on Desktop) -->
+      <div class="lg:col-span-7 flex flex-col gap-3">
+        <div class="relative w-full h-[380px] sm:h-[460px] md:h-[500px] rounded-2xl overflow-hidden border border-slate-800 shadow-2xl bg-slate-900">
+          <div id="goaMap" class="w-full h-full"></div>
+          
+          <!-- Simulation HUD / Telemetry Card Floating Overlay -->
+          <div class="absolute top-3 left-3 right-3 sm:right-auto sm:w-80 bg-slate-900/90 backdrop-blur-md border border-slate-700/70 rounded-xl p-3 shadow-2xl z-[1000] text-xs">
+            <div class="flex items-center justify-between border-b border-slate-700/60 pb-2 mb-2">
+              <span class="font-bold text-sky-400 flex items-center gap-1.5">
+                <i data-lucide="activity" class="w-4 h-4 text-sky-400"></i> Live Telemetry
+              </span>
+              <span id="hudStatusBadge" class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-950 border border-emerald-500/40 text-emerald-300">
+                At Base
+              </span>
+            </div>
+            
+            <div class="grid grid-cols-2 gap-2 text-slate-300">
+              <div>
+                <span class="text-slate-500 text-[10px] block uppercase font-medium">Virtual Time</span>
+                <span id="hudTime" class="text-sm font-extrabold text-amberGold tracking-wide font-mono">04:00 PM</span>
+              </div>
+              <div>
+                <span class="text-slate-500 text-[10px] block uppercase font-medium">Distance Traveled</span>
+                <span id="hudDistance" class="text-sm font-extrabold text-white font-mono">0.0 km</span>
+              </div>
+              <div class="col-span-2 pt-1 border-t border-slate-800/60">
+                <span class="text-slate-500 text-[10px] block uppercase font-medium">Current Status / Activity</span>
+                <span id="hudLocation" class="text-xs font-semibold text-sky-300 truncate block mt-0.5">FabHotel Comfort Stays, Miramar</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Map Legend Button Overlay -->
+          <div class="absolute bottom-3 right-3 bg-slate-900/85 backdrop-blur-md border border-slate-700/60 px-3 py-1.5 rounded-lg z-[1000] text-[11px] text-slate-300 flex items-center gap-2 pointer-events-none">
+            <span class="w-2.5 h-2.5 rounded-full bg-sky-400 inline-block shadow-[0_0_8px_#38bdf8]"></span>
+            <span>Miramar Base</span>
+            <span class="w-2.5 h-2.5 rounded-full bg-amber-400 inline-block ml-1 shadow-[0_0_8px_#f59e0b]"></span>
+            <span>Stop / Activity</span>
+          </div>
+        </div>
+
+        <!-- Simulation Playback & Time Scrubbing Controls -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex flex-col gap-3">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <button id="simPlayBtn" class="bg-gradient-to-r from-sky-500 to-sky-600 hover:from-sky-400 hover:to-sky-500 text-slate-950 font-bold px-4 py-2 rounded-xl text-xs flex items-center gap-2 shadow-lg shadow-sky-500/25 active:scale-95 transition-all">
+                <i data-lucide="play" class="w-4 h-4 fill-slate-950"></i>
+                <span id="simPlayText">Simulate Drive</span>
+              </button>
+              <button id="simResetBtn" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-300 font-semibold px-3 py-2 rounded-xl text-xs flex items-center gap-1.5 active:scale-95 transition-all">
+                <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i> Reset
+              </button>
+            </div>
+
+            <!-- Simulation Speed Selectors -->
+            <div class="flex items-center gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs">
+              <span class="text-[10px] text-slate-500 px-2 font-semibold uppercase">Speed:</span>
+              <button data-speed="1" class="speed-btn px-2.5 py-1 rounded-lg text-slate-300 font-mono font-bold bg-slate-800 text-sky-400">1x</button>
+              <button data-speed="3" class="speed-btn px-2.5 py-1 rounded-lg text-slate-400 font-mono font-bold hover:text-slate-200">3x</button>
+              <button data-speed="6" class="speed-btn px-2.5 py-1 rounded-lg text-slate-400 font-mono font-bold hover:text-slate-200">6x</button>
+            </div>
+          </div>
+
+          <!-- Timeline Slider / Scrubber -->
+          <div class="flex flex-col gap-1.5 pt-1">
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-slate-400 flex items-center gap-1">
+                <i data-lucide="calendar" class="w-3.5 h-3.5 text-sky-400"></i>
+                <span id="sliderStartTime" class="font-mono text-slate-300">04:00 PM</span>
+              </span>
+              <span class="text-amberGold font-mono font-bold bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/30 text-xs" id="sliderCurrentTimeDisplay">
+                04:00 PM
+              </span>
+              <span class="text-slate-400 font-mono" id="sliderEndTime">09:00 PM</span>
+            </div>
+            <input type="range" id="simTimeSlider" min="0" max="100" value="0" step="0.2" class="w-full accent-sky-400 cursor-pointer h-2 bg-slate-800 rounded-lg">
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Right Column: Itinerary Details & Day Highlights (5 cols on Desktop) -->
+      <div class="lg:col-span-5 flex flex-col gap-3">
+        
+        <!-- Day Summary Header Card -->
+        <div class="bg-gradient-to-br from-slate-900 to-slate-950 border border-slate-800 rounded-2xl p-4 shadow-xl">
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="flex items-center gap-2">
+                <span id="dayBadge" class="text-[11px] font-bold px-2.5 py-0.5 rounded-full bg-sky-500/10 text-sky-400 border border-sky-500/30 uppercase tracking-wider">Day 1</span>
+                <span id="dayDate" class="text-xs text-slate-400">Nov 7, 2026</span>
+              </div>
+              <h2 id="dayTitle" class="text-base sm:text-lg font-bold text-slate-100 mt-1">Arrival & Mandovi River Private Boat</h2>
+              <p id="dayThemeDesc" class="text-xs text-slate-400 mt-0.5 leading-relaxed">Relaxed sunset charter after arrival drive; stress-free introduction to Goa.</p>
+            </div>
+          </div>
+
+          <!-- Day Distance & Drive Metrics -->
+          <div class="grid grid-cols-3 gap-2 mt-3 pt-3 border-t border-slate-800/80 text-center">
+            <div class="bg-slate-900/90 rounded-xl p-2 border border-slate-800">
+              <span class="text-[10px] text-slate-500 block uppercase font-medium">Day Distance</span>
+              <span id="metricDistance" class="text-xs sm:text-sm font-extrabold text-sky-400 font-mono">16 km</span>
+            </div>
+            <div class="bg-slate-900/90 rounded-xl p-2 border border-slate-800">
+              <span class="text-[10px] text-slate-500 block uppercase font-medium">Drive Time</span>
+              <span id="metricDriveTime" class="text-xs sm:text-sm font-extrabold text-amberGold font-mono">~50 min</span>
+            </div>
+            <div class="bg-slate-900/90 rounded-xl p-2 border border-slate-800">
+              <span class="text-[10px] text-slate-500 block uppercase font-medium">Total Stops</span>
+              <span id="metricStops" class="text-xs sm:text-sm font-extrabold text-emeraldGoa font-mono">3 Spots</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Chronological Timeline List of Stops -->
+        <div class="bg-slate-900/90 border border-slate-800 rounded-2xl p-4 shadow-xl flex-1 flex flex-col">
+          <div class="flex items-center justify-between pb-2 mb-3 border-b border-slate-800">
+            <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="milestone" class="w-4 h-4 text-sky-400"></i> Route Schedule & Milestones
+            </h3>
+            <span class="text-[11px] text-slate-500">Includes +15m buffer</span>
+          </div>
+
+          <div id="stopsTimelineContainer" class="space-y-3.5 overflow-y-auto max-h-[380px] sm:max-h-[420px] pr-1">
+            <!-- Dynamic Waypoint Cards -->
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+
+    <!-- Essential Family & Self-Drive Guidance Bar -->
+    <div class="bg-slate-900/80 border border-slate-800 rounded-2xl p-4 text-xs text-slate-300 shadow-xl grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-lg bg-sky-500/10 border border-sky-500/20 flex items-center justify-center shrink-0 text-sky-400">
+          <i data-lucide="car" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <h4 class="font-bold text-slate-200">Fuel & Bridge Efficiency</h4>
+          <p class="text-slate-400 mt-0.5">Staying in Miramar lets you bypass Panaji congestion via Atal Setu (North) and the New Zuari Bridge (South).</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center shrink-0 text-amberGold">
+          <i data-lucide="sparkles" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <h4 class="font-bold text-slate-200">Temple Etiquette</h4>
+          <p class="text-slate-400 mt-0.5">Shantadurga & Mangeshi enforce strict dress code (shoulders & knees covered; no shorts). Sanctorums close 1:00–3:30 PM.</p>
+        </div>
+      </div>
+      <div class="flex items-start gap-3">
+        <div class="w-8 h-8 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center shrink-0 text-emeraldGoa">
+          <i data-lucide="anchor" class="w-4 h-4"></i>
+        </div>
+        <div>
+          <h4 class="font-bold text-slate-200">Private Boat Charter</h4>
+          <p class="text-slate-400 mt-0.5">Britona Jetty charters (Boat Goa) are private 4-seater speedboats/cruisers, avoiding noisy shared casino ferries.</p>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Application Logic & Data Simulation Script -->
+  <script>
+    // ==========================================
+    // TRIP DATA SPECIFICATION
+    // ==========================================
+    const HOTEL_BASE = {
+      name: "FabHotel Comfort Stays, Miramar",
+      lat: 15.4802,
+      lng: 73.8124,
+      desc: "Base hotel in Miramar, Panaji. Centrally located between North and South Goa corridors."
+    };
+
+    // Realistic Road Geometries following actual bridges, highways (NH66, NH748, Atal Setu, Zuari Bridge)
+    const REAL_ROAD_PATHS = {
+      1: [
+        // Miramar Base along DB Marg -> Atal Setu Bridge -> Britona Jetty
+        [15.4802, 73.8124], [15.4835, 73.8120], [15.4880, 73.8155], [15.4950, 73.8210],
+        [15.4989, 73.8278], [15.5020, 73.8340], [15.5055, 73.8385], [15.5110, 73.8395],
+        [15.5173, 73.8378], // Britona Jetty
+        // Britona back across Mandovi river to central Panaji DB Marg
+        [15.5110, 73.8395], [15.5055, 73.8385], [15.5010, 73.8330], [15.4989, 73.8278], // DB Marg
+        // DB Marg back along waterfront road to Miramar
+        [15.4950, 73.8210], [15.4880, 73.8155], [15.4835, 73.8120], [15.4802, 73.8124]
+      ],
+      2: [
+        // Miramar -> Ribandar Causeway -> Old Goa bypass (NH748) -> Banastarim Bridge -> Priol (Mangeshi)
+        [15.4802, 73.8124], [15.4880, 73.8155], [15.4989, 73.8278], [15.5015, 73.8420],
+        [15.5025, 73.8650], [15.5010, 73.9110], [15.4920, 73.9350], [15.4650, 73.9550],
+        [15.4385, 73.9678], // Shree Mangesh Mandir
+        // Priol down south along Ponda bypass to Kavlem
+        [15.4250, 73.9720], [15.4120, 73.9790], [15.3995, 73.9856], // Shantadurga Kavlem
+        // Kavlem -> Borim Bridge -> Curtorim bypass -> Margao ring road -> Colva Beach
+        [15.3850, 73.9920], [15.3520, 74.0080], [15.3280, 73.9850], [15.3050, 73.9600],
+        [15.2890, 73.9400], [15.2787, 73.9118], // Colva Beach
+        // Colva down coastal road to Benaulim Beach
+        [15.2690, 73.9140], [15.2575, 73.9189], // Benaulim Beach
+        // Benaulim -> Margao West bypass -> New Zuari Bridge (NH66 express corridor) -> Miramar
+        [15.2720, 73.9350], [15.3100, 73.9380], [15.3550, 73.9220], [15.3980, 73.8990],
+        [15.4150, 73.8680], [15.4450, 73.8480], [15.4720, 73.8250], [15.4802, 73.8124]
+      ],
+      3: [
+        // Miramar -> Atal Setu Bridge -> Nerul road -> Sinquerim -> Fort Aguada
+        [15.4802, 73.8124], [15.4989, 73.8278], [15.5055, 73.8385], [15.5120, 73.8250],
+        [15.5080, 73.7920], [15.4960, 73.7745], [15.4929, 73.7737], // Fort Aguada
+        // Aguada up the coastal road to Candolim Beach
+        [15.4990, 73.7720], [15.5100, 73.7660], [15.5178, 73.7634], // Candolim Beach
+        // Candolim -> Calangute bypass -> Arpora -> Siolim/Chapora Fort
+        [15.5350, 73.7650], [15.5600, 73.7620], [15.5850, 73.7480], [15.6059, 73.7389], // Chapora
+        // Chapora south down to Anjuna Beach
+        [15.5950, 73.7420], [15.5802, 73.7438], // Anjuna Beach
+        // Anjuna -> Arpora -> NH66 Porvorim corridor -> Mandovi Bridge -> Miramar
+        [15.5750, 73.7600], [15.5500, 73.7850], [15.5250, 73.8200], [15.5055, 73.8385],
+        [15.4989, 73.8278], [15.4880, 73.8155], [15.4802, 73.8124]
+      ],
+      4: [
+        // Miramar Beach immediate local stretch
+        [15.4802, 73.8124], [15.4853, 73.8078],
+        // Miramar to Dona Paula promontory via Dr E Borges Rd
+        [15.4750, 73.8090], [15.4620, 73.8060], [15.4542, 73.8048], // Dona Paula
+        // Dona Paula -> Taleigao -> St Inez -> Fontainhas Latin Quarter
+        [15.4620, 73.8060], [15.4720, 73.8190], [15.4850, 73.8260], [15.4989, 73.8322], // Fontainhas
+        // Fontainhas -> Ribandar Causeway -> Old Goa Heritage Area
+        [15.5020, 73.8450], [15.5030, 73.8700], [15.5009, 73.9116], // Old Goa
+        // Old Goa -> Ribandar bypass back to Miramar
+        [15.5030, 73.8700], [15.5015, 73.8420], [15.4950, 73.8210], [15.4802, 73.8124]
+      ],
+      5: [
+        // Hotel Miramar -> DB Marg -> Atal Setu on-ramp connecting to NH66 north / NH748 east
+        [15.4802, 73.8124], [15.4880, 73.8155], [15.4989, 73.8278], [15.5055, 73.8385], [15.5200, 73.8450]
+      ]
+    };
+
+    const TRIP_DATA = {
+      1: {
+        dayNum: 1,
+        date: "Nov 7, 2026",
+        title: "Arrival & Mandovi River Private Boat",
+        themeDesc: "Check-in at Miramar, followed by a scenic 1-hour private boat charter at Britona Jetty to welcome the sunset.",
+        startTime: "16:00",
+        endTime: "21:00",
+        startMinutes: 16 * 60, // 960 mins
+        endMinutes: 21 * 60,   // 1260 mins
+        totalDistance: "16 km",
+        totalDriveTime: "~50 min",
+        routeColor: "#38bdf8",
+        stops: [
+          {
+            name: "FabHotel Comfort Stays, Miramar",
+            type: "Hotel Base",
+            icon: "hotel",
+            lat: 15.4802,
+            lng: 73.8124,
+            timeSlot: "04:00 PM - 05:00 PM",
+            duration: "1 hr",
+            distanceFromPrev: "0 km",
+            driveTimeTo: "0 min",
+            tip: "Check in, freshen up after the car journey, and get ready for the evening cruise.",
+            startTimeMin: 16 * 60,
+            endTimeMin: 17 * 60
+          },
+          {
+            name: "Britona Yacht & Boat Jetty (Boat Goa)",
+            type: "Private Boat Ride",
+            icon: "anchor",
+            lat: 15.5173,
+            lng: 73.8378,
+            timeSlot: "05:30 PM - 06:45 PM",
+            duration: "1 hr 15 min",
+            distanceFromPrev: "7.5 km",
+            driveTimeTo: "15 min (+15m buffer)",
+            tip: "Board chartered speedboat/cruiser for private sunset ride across Mandovi estuary.",
+            startTimeMin: 17.5 * 60,
+            endTimeMin: 18.75 * 60
+          },
+          {
+            name: "Central Panaji (DB Marg Waterfront)",
+            type: "Family Dinner",
+            icon: "utensils",
+            lat: 15.4989,
+            lng: 73.8278,
+            timeSlot: "07:10 PM - 08:45 PM",
+            duration: "1 hr 35 min",
+            distanceFromPrev: "4.5 km",
+            driveTimeTo: "10 min (+15m buffer)",
+            tip: "Authentic Goan or multi-cuisine family dinner along the illuminated river promenade.",
+            startTimeMin: 19.16 * 60,
+            endTimeMin: 20.75 * 60
+          },
+          {
+            name: "FabHotel Comfort Stays, Miramar",
+            type: "Return to Hotel",
+            icon: "moon",
+            lat: 15.4802,
+            lng: 73.8124,
+            timeSlot: "09:05 PM onwards",
+            duration: "Rest",
+            distanceFromPrev: "4.0 km",
+            driveTimeTo: "10 min (+10m buffer)",
+            tip: "Early night rest to recharge for tomorrow's South Goa temples and beaches.",
+            startTimeMin: 21.08 * 60,
+            endTimeMin: 21.5 * 60
+          }
+        ]
+      },
+      2: {
+        dayNum: 2,
+        date: "Nov 8, 2026",
+        title: "South Goa — Temples & White Sand Beaches",
+        themeDesc: "Optimized non-backtracking morning temple circuit in Ponda, followed by seaside lunch and sunset at Benaulim.",
+        startTime: "08:30",
+        endTime: "20:00",
+        startMinutes: 8.5 * 60, // 510 mins
+        endMinutes: 20 * 60,   // 1200 mins
+        totalDistance: "96 km",
+        totalDriveTime: "~2 hr 45 min",
+        routeColor: "#f59e0b",
+        stops: [
+          {
+            name: "FabHotel Comfort Stays, Miramar",
+            type: "Departure",
+            icon: "car",
+            lat: 15.4802,
+            lng: 73.8124,
+            timeSlot: "08:30 AM",
+            duration: "Start",
+            distanceFromPrev: "0 km",
+            driveTimeTo: "0 min",
+            tip: "Prompt 8:30 AM departure to complete morning temple darshans before noon heat.",
+            startTimeMin: 8.5 * 60,
+            endTimeMin: 8.5 * 60
+          },
+          {
+            name: "Shree Mangesh Mandir, Priol",
+            type: "Heritage Temple",
+            icon: "sparkles",
+            lat: 15.4385,
+            lng: 73.9678,
+            timeSlot: "09:30 AM - 10:30 AM",
+            duration: "1 hr",
+            distanceFromPrev: "23 km",
+            driveTimeTo: "45 min (+15m buffer)",
+            tip: "View the 7-story octagonal Deepstambha. Dress code: covered shoulders & knees; no shorts.",
+            startTimeMin: 9.5 * 60,
+            endTimeMin: 10.5 * 60
+          },
+          {
+            name: "Shri Shantadurga Temple, Kavlem",
+            type: "Heritage Temple",
+            icon: "sparkles",
+            lat: 15.3995,
+            lng: 73.9856,
+            timeSlot: "10:55 AM - 12:15 PM",
+            duration: "1 hr 20 min",
+            distanceFromPrev: "8 km",
+            driveTimeTo: "12 min (+13m buffer)",
+            tip: "Peaceful sacred tank (kund) and unique Goan-Portuguese temple architecture.",
+            startTimeMin: 10.92 * 60,
+            endTimeMin: 12.25 * 60
+          },
+          {
+            name: "Colva Beach",
+            type: "Beach Lunch & Stroll",
+            icon: "sun",
+            lat: 15.2787,
+            lng: 73.9118,
+            timeSlot: "01:15 PM - 03:30 PM",
+            duration: "2 hr 15 min",
+            distanceFromPrev: "28 km",
+            driveTimeTo: "45 min (+15m buffer)",
+            tip: "Paved beachfront parking; enjoy fresh seafood and curry at beachfront shacks.",
+            startTimeMin: 13.25 * 60,
+            endTimeMin: 15.5 * 60
+          },
+          {
+            name: "Benaulim Beach",
+            type: "Sunset & Calm Waters",
+            icon: "sunset",
+            lat: 15.2575,
+            lng: 73.9189,
+            timeSlot: "03:55 PM - 06:30 PM",
+            duration: "2 hr 35 min",
+            distanceFromPrev: "4.5 km",
+            driveTimeTo: "10 min (+15m buffer)",
+            tip: "Quiet white sand stretch, gentle waves for wading, and gorgeous sunset tea.",
+            startTimeMin: 15.92 * 60,
+            endTimeMin: 18.5 * 60
+          },
+          {
+            name: "FabHotel Comfort Stays, Miramar",
+            type: "Return to Hotel",
+            icon: "hotel",
+            lat: 15.4802,
+            lng: 73.8124,
+            timeSlot: "07:50 PM onwards",
+            duration: "Rest",
+            distanceFromPrev: "36 km",
+            driveTimeTo: "55 min (+25m buffer)",
+            tip: "Fast transit back across the New Zuari Bridge (NH66) straight into Miramar.",
+            startTimeMin: 19.83 * 60,
+            endTimeMin: 20.5 * 60
+          }
+        ]
+      },
+      3: {
+        dayNum: 3,
+        date: "Nov 9, 2026",
+        title: "North Goa — Coastal Fort & Iconic Sands",
+        themeDesc: "Explore Portuguese ramparts at Fort Aguada, unwind at Candolim Beach, and catch sunset at Anjuna's red cliffs.",
+        startTime: "09:00",
+        endTime: "20:00",
+        startMinutes: 9 * 60,   // 540 mins
+        endMinutes: 20 * 60,   // 1200 mins
+        totalDistance: "48 km",
+        totalDriveTime: "~1 hr 55 min",
+        routeColor: "#10b981",
+        stops: [
+          {
+            name: "FabHotel Comfort Stays, Miramar",
+            type: "Departure",
+            icon: "car",
+            lat: 15.4802,
+            lng: 73.8124,
+            timeSlot: "09:00 AM",
+            duration: "Start",
+            distanceFromPrev: "0 km",
+            driveTimeTo: "0 min",
+            tip: "Drive across Mandovi Bridge to reach Sinquerim headland.",
+            startTimeMin: 9 * 60,
+            endTimeMin: 9 * 60
+          },
+          {
+            name: "Fort Aguada & Lighthouse",
+            type: "Coastal Fortress",
+            icon: "shield",
+            lat: 15.4929,
+            lng: 73.7737,
+            timeSlot: "09:50 AM - 11:30 AM",
+            duration: "1 hr 40 min",
+            distanceFromPrev: "19 km",
+            driveTimeTo: "35 min (+15m buffer)",
+            tip: "17th-century coastal fortress with 360-degree ocean panoramas and lighthouse.",
+            startTimeMin: 9.83 * 60,
+            endTimeMin: 11.5 * 60
+          },
+          {
+            name: "Candolim Beach",
+            type: "Beach Shacks Lunch",
+            icon: "sun",
+            lat: 15.5178,
+            lng: 73.7634,
+            timeSlot: "12:00 PM - 02:30 PM",
+            duration: "2 hr 30 min",
+            distanceFromPrev: "5 km",
+            driveTimeTo: "15 min (+15m buffer)",
+            tip: "Wide, clean beach. Rent sun loungers with umbrellas and enjoy a relaxed family lunch.",
+            startTimeMin: 12 * 60,
+            endTimeMin: 14.5 * 60
+          },
+          {
+            name: "Chapora Fort / Vagator Viewpoint",
+            type: "Clifftop Viewpoint",
+            icon: "mountain",
+            lat: 15.6059,
+            lng: 73.7389,
+            timeSlot: "03:15 PM - 04:45 PM",
+            duration: "1 hr 30 min",
+            distanceFromPrev: "12 km",
+            driveTimeTo: "30 min (+15m buffer)",
+            tip: "Iconic red laterite stone bastions overlooking the Chapora river estuary.",
+            startTimeMin: 15.25 * 60,
+            endTimeMin: 16.75 * 60
+          },
+          {
+            name: "Anjuna Beach",
+            type: "Sunset Coastal Spot",
+            icon: "sunset",
+            lat: 15.5802,
+            lng: 73.7438,
+            timeSlot: "05:10 PM - 06:45 PM",
+            duration: "1 hr 35 min",
+            distanceFromPrev: "4 km",
+            driveTimeTo: "10 min (+15m buffer)",
+            tip: "Famous red rocky shore and beachside cafes at twilight.",
+            startTimeMin: 17.16 * 60,
+            endTimeMin: 18.75 * 60
+          },
+          {
+            name: "FabHotel Comfort Stays, Miramar",
+            type: "Return to Hotel",
+            icon: "hotel",
+            lat: 15.4802,
+            lng: 73.8124,
+            timeSlot: "07:45 PM onwards",
+            duration: "Rest",
+            distanceFromPrev: "22 km",
+            driveTimeTo: "45 min (+15m buffer)",
+            tip: "Return via Porvorim corridor back to your Miramar base.",
+            startTimeMin: 19.75 * 60,
+            endTimeMin: 20.25 * 60
+          }
+        ]
+      },
+      4: {
+        dayNum: 4,
+        date: "Nov 10, 2026",
+        title: "Central Heritage & Local Coast (Zero Long Driving)",
+        themeDesc: "Morning walk at Miramar, Dona Paula sea views, colourful Fontainhas Latin Quarter, and Old Goa UNESCO churches.",
+        startTime: "08:30",
+        endTime: "18:00",
+        startMinutes: 8.5 * 60, // 510 mins
+        endMinutes: 18 * 60,   // 1080 mins
+        totalDistance: "26 km",
+        totalDriveTime: "~1 hr 10 min",
+        routeColor: "#38bdf8",
+        stops: [
+          {
+            name: "Miramar Beach",
+            type: "Local Morning Walk",
+            icon: "footprints",
+            lat: 15.4853,
+            lng: 73.8078,
+            timeSlot: "08:30 AM - 10:15 AM",
+            duration: "1 hr 45 min",
+            distanceFromPrev: "1 km",
+            driveTimeTo: "Walk / 3 min",
+            tip: "Step out straight from hotel; cool morning breeze where Mandovi meets the sea.",
+            startTimeMin: 8.5 * 60,
+            endTimeMin: 10.25 * 60
+          },
+          {
+            name: "Dona Paula View Point",
+            type: "Panoramic Sea Jetty",
+            icon: "eye",
+            lat: 15.4542,
+            lng: 73.8048,
+            timeSlot: "10:35 AM - 12:00 PM",
+            duration: "1 hr 25 min",
+            distanceFromPrev: "3.5 km",
+            driveTimeTo: "10 min (+10m buffer)",
+            tip: "Paved viewing deck looking across Mormugao port; local pearl and shell souvenirs.",
+            startTimeMin: 10.58 * 60,
+            endTimeMin: 12 * 60
+          },
+          {
+            name: "Fontainhas (Latin Quarter)",
+            type: "Heritage Quarter & Lunch",
+            icon: "palette",
+            lat: 15.4989,
+            lng: 73.8322,
+            timeSlot: "12:25 PM - 02:45 PM",
+            duration: "2 hr 20 min",
+            distanceFromPrev: "6 km",
+            driveTimeTo: "12 min (+13m buffer)",
+            tip: "Stroll picturesque Portuguese lanes with tiled roofs; historic bakery treats.",
+            startTimeMin: 12.42 * 60,
+            endTimeMin: 14.75 * 60
+          },
+          {
+            name: "Old Goa (Basilica of Bom Jesus & Se Cathedral)",
+            type: "UNESCO World Heritage",
+            icon: "landmark",
+            lat: 15.5009,
+            lng: 73.9116,
+            timeSlot: "03:15 PM - 05:15 PM",
+            duration: "2 hr",
+            distanceFromPrev: "10 km",
+            driveTimeTo: "15 min (+15m buffer)",
+            tip: "Marvel at 16th-century gilded altars and St. Francis Xavier mausoleum.",
+            startTimeMin: 15.25 * 60,
+            endTimeMin: 17.25 * 60
+          },
+          {
+            name: "FabHotel Comfort Stays, Miramar",
+            type: "Return to Hotel",
+            icon: "hotel",
+            lat: 15.4802,
+            lng: 73.8124,
+            timeSlot: "05:45 PM onwards",
+            duration: "Rest & Packing",
+            distanceFromPrev: "11 km",
+            driveTimeTo: "18 min (+12m buffer)",
+            tip: "Early return to hotel for dinner and relaxed packing before checkout tomorrow.",
+            startTimeMin: 17.75 * 60,
+            endTimeMin: 18.25 * 60
+          }
+        ]
+      },
+      5: {
+        dayNum: 5,
+        date: "Nov 11, 2026",
+        title: "Departure & Return Journey Home",
+        themeDesc: "Breakfast at Miramar, hotel checkout by 11:00 AM, and smooth departure onto the national highway.",
+        startTime: "09:00",
+        endTime: "11:30",
+        startMinutes: 9 * 60,   // 540 mins
+        endMinutes: 11.5 * 60, // 690 mins
+        totalDistance: "Exit Hwy",
+        totalDriveTime: "Departure",
+        routeColor: "#94a3b8",
+        stops: [
+          {
+            name: "FabHotel Comfort Stays, Miramar",
+            type: "Breakfast & Packing",
+            icon: "coffee",
+            lat: 15.4802,
+            lng: 73.8124,
+            timeSlot: "09:00 AM - 10:30 AM",
+            duration: "1 hr 30 min",
+            distanceFromPrev: "0 km",
+            driveTimeTo: "0 min",
+            tip: "Family breakfast, bag loading, and car tire pressure/fuel check.",
+            startTimeMin: 9 * 60,
+            endTimeMin: 10.5 * 60
+          },
+          {
+            name: "Hotel Check-Out",
+            type: "Departure",
+            icon: "key",
+            lat: 15.4802,
+            lng: 73.8124,
+            timeSlot: "10:30 AM - 11:00 AM",
+            duration: "30 min",
+            distanceFromPrev: "0 km",
+            driveTimeTo: "0 min",
+            tip: "Smooth checkout process before 11:00 AM mandatory timing.",
+            startTimeMin: 10.5 * 60,
+            endTimeMin: 11 * 60
+          },
+          {
+            name: "NH66 / NH748 Highway On-Ramp",
+            type: "Return Drive Begins",
+            icon: "compass",
+            lat: 15.4950,
+            lng: 73.8500,
+            timeSlot: "11:00 AM onwards",
+            duration: "Return",
+            distanceFromPrev: "5 km",
+            driveTimeTo: "15 min",
+            tip: "Hit the highway with full energy and zero fatigue.",
+            startTimeMin: 11 * 60,
+            endTimeMin: 11.5 * 60
+          }
+        ]
+      }
+    };
+
+    // ==========================================
+    // STATE MANAGEMENT
+    // ==========================================
+    let currentDay = 1;
+    let isPlaying = false;
+    let simSpeed = 1;
+    let simCurrentMinutes = TRIP_DATA[1].startMinutes;
+    let animRequest = null;
+    let lastTimestamp = null;
+
+    // Leaflet map instances
+    let map = null;
+    let routePolyline = null;
+    let routeGlowPolyline = null;
+    let stopMarkers = [];
+    let carMarker = null;
+
+    // Helper: calculate distance in km between two lat/lng points using Haversine
+    function getDistanceKm(lat1, lon1, lat2, lon2) {
+      const R = 6371;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLon = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      return R * c;
+    }
+
+    // Helper: interpolate smoothly along a list of coordinates at a constant linear speed
+    function interpolateAlongPath(pathCoords, progressFrac) {
+      if (!pathCoords || pathCoords.length === 0) return [0, 0];
+      if (pathCoords.length === 1 || progressFrac <= 0) return pathCoords[0];
+      if (progressFrac >= 1) return pathCoords[pathCoords.length - 1];
+
+      // Compute cumulative segment distances
+      const segLengths = [];
+      let totalDist = 0;
+      for (let i = 0; i < pathCoords.length - 1; i++) {
+        const d = getDistanceKm(pathCoords[i][0], pathCoords[i][1], pathCoords[i+1][0], pathCoords[i+1][1]);
+        segLengths.push(d);
+        totalDist += d;
+      }
+
+      if (totalDist === 0) return pathCoords[0];
+
+      const targetDist = progressFrac * totalDist;
+      let accumulated = 0;
+
+      for (let i = 0; i < segLengths.length; i++) {
+        const segLen = segLengths[i];
+        if (accumulated + segLen >= targetDist) {
+          const segFrac = segLen === 0 ? 0 : (targetDist - accumulated) / segLen;
+          const lat = pathCoords[i][0] + (pathCoords[i+1][0] - pathCoords[i][0]) * segFrac;
+          const lng = pathCoords[i][1] + (pathCoords[i+1][1] - pathCoords[i][1]) * segFrac;
+          return [lat, lng];
+        }
+        accumulated += segLen;
+      }
+      return pathCoords[pathCoords.length - 1];
+    }
+
+    // Slice the full road path into discrete path segments between sequential checkpoints
+    function getLegRoadPath(dayNum, fromIdx, toIdx) {
+      const day = TRIP_DATA[dayNum];
+      const fullPath = REAL_ROAD_PATHS[dayNum] || day.stops.map(s => [s.lat, s.lng]);
+      const stops = day.stops;
+      
+      if (stops.length <= 1) return fullPath;
+
+      // Find closest indices in fullPath corresponding to fromStop and toStop
+      function findClosestPathIdx(stopLat, stopLng, searchStartIdx = 0) {
+        let bestIdx = searchStartIdx;
+        let minDist = Infinity;
+        for (let i = searchStartIdx; i < fullPath.length; i++) {
+          const d = getDistanceKm(stopLat, stopLng, fullPath[i][0], fullPath[i][1]);
+          if (d < minDist) {
+            minDist = d;
+            bestIdx = i;
+          }
+        }
+        return bestIdx;
+      }
+
+      let startP = 0;
+      for (let i = 0; i < fromIdx; i++) {
+        startP = findClosestPathIdx(stops[i].lat, stops[i].lng, startP);
+      }
+      let endP = findClosestPathIdx(stops[toIdx].lat, stops[toIdx].lng, startP);
+
+      if (endP <= startP) {
+        return [[stops[fromIdx].lat, stops[fromIdx].lng], [stops[toIdx].lat, stops[toIdx].lng]];
+      }
+
+      const segment = fullPath.slice(startP, endP + 1);
+      // Ensure exact checkpoint snaps at ends
+      segment[0] = [stops[fromIdx].lat, stops[fromIdx].lng];
+      segment[segment.length - 1] = [stops[toIdx].lat, stops[toIdx].lng];
+      return segment;
+    }
+
+    // Helper: format minutes to 12-hour AM/PM
+    function minutesToTimeString(minutes) {
+      let m = Math.floor(minutes);
+      let hours = Math.floor(m / 60);
+      let mins = m % 60;
+      let ampm = hours >= 12 ? 'PM' : 'AM';
+      let displayHours = hours % 12;
+      if (displayHours === 0) displayHours = 12;
+      return `${displayHours.toString().padStart(2, '0')}:${mins.toString().padStart(2, '0')} ${ampm}`;
+    }
+
+    // ==========================================
+    // LEAFLET MAP INITIALIZATION
+    // ==========================================
+    function initMap() {
+      // Centered on Goa
+      map = L.map('goaMap', {
+        zoomControl: true,
+        attributionControl: false
+      }).setView([15.45, 73.88], 11);
+
+      // OpenStreetMap standard tiles (completely free, 100% open, zero API key required)
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        maxZoom: 19,
+        subdomains: ['a', 'b', 'c']
+      }).addTo(map);
+
+      // Add car simulation marker
+      const carIcon = L.divIcon({
+        className: 'custom-car-div',
+        html: `
+          <div class="car-marker-container">
+            <div class="car-marker-pulse"></div>
+            <div class="car-marker-body">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.5 2.8C2.1 10.9 2 11.2 2 11.5V16c0 .6.4 1 1 1h2"/>
+                <circle cx="7" cy="17" r="2"/>
+                <path d="M9 17h6"/>
+                <circle cx="17" cy="17" r="2"/>
+              </svg>
+            </div>
+          </div>
+        `,
+        iconSize: [44, 44],
+        iconAnchor: [22, 22]
+      });
+
+      carMarker = L.marker([HOTEL_BASE.lat, HOTEL_BASE.lng], { icon: carIcon, zIndexOffset: 1000 }).addTo(map);
+    }
+
+    // ==========================================
+    // RENDER ROUTE & MARKERS FOR SELECTED DAY
+    // ==========================================
+    function renderDayOnMap(dayNum) {
+      const day = TRIP_DATA[dayNum];
+      
+      // Clear existing markers & route
+      if (routePolyline) {
+        map.removeLayer(routePolyline);
+      }
+      if (routeGlowPolyline) {
+        map.removeLayer(routeGlowPolyline);
+      }
+      stopMarkers.forEach(m => map.removeLayer(m));
+      stopMarkers = [];
+
+      // Use true road path geometry rather than straight pin-to-pin lines
+      const roadPath = REAL_ROAD_PATHS[dayNum] || day.stops.map(s => [s.lat, s.lng]);
+
+      // Outer glow polyline for road presence
+      routeGlowPolyline = L.polyline(roadPath, {
+        color: day.routeColor,
+        weight: 9,
+        opacity: 0.35,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(map);
+
+      // Core crisp road route line
+      routePolyline = L.polyline(roadPath, {
+        color: day.routeColor,
+        weight: 4.5,
+        opacity: 0.95,
+        lineCap: 'round',
+        lineJoin: 'round'
+      }).addTo(map);
+
+      // Add Pins for each stop
+      day.stops.forEach((stop, idx) => {
+        const isBase = stop.name.includes("FabHotel");
+        const pinColor = isBase ? '#38bdf8' : (idx === day.stops.length - 1 ? '#ef4444' : '#f59e0b');
+        
+        const pinIcon = L.divIcon({
+          className: 'custom-pin',
+          html: `
+            <div style="background-color: ${pinColor}; width: 24px; height: 24px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 10px rgba(0,0,0,0.5); font-weight: bold; font-size: 11px; color: #0f172a;">
+              ${idx + 1}
+            </div>
+          `,
+          iconSize: [24, 24],
+          iconAnchor: [12, 12]
+        });
+
+        const marker = L.marker([stop.lat, stop.lng], { icon: pinIcon }).addTo(map);
+        marker.bindPopup(`
+          <div class="p-1">
+            <span class="text-[10px] font-bold text-sky-400 uppercase tracking-wider block">Stop #${idx + 1} • ${stop.type}</span>
+            <h4 class="font-bold text-sm text-white mt-0.5">${stop.name}</h4>
+            <div class="text-xs text-amber-300 font-mono mt-1 font-semibold">${stop.timeSlot}</div>
+            <p class="text-xs text-slate-300 mt-1 border-t border-slate-700/60 pt-1">${stop.tip}</p>
+          </div>
+        `);
+        stopMarkers.push(marker);
+      });
+
+      // Fit map bounds to encompass all points comfortably
+      map.fitBounds(routePolyline.getBounds(), { padding: [50, 50] });
+
+      // Reset car to first stop
+      carMarker.setLatLng([roadPath[0][0], roadPath[0][1]]);
+    }
+
+    // ==========================================
+    // UI RENDERING: DAY TABS & TIMELINE
+    // ==========================================
+    function renderDayTabs() {
+      const container = document.getElementById('dayTabsContainer');
+      container.innerHTML = '';
+
+      Object.values(TRIP_DATA).forEach(day => {
+        const active = day.dayNum === currentDay;
+        const btn = document.createElement('button');
+        btn.className = `flex-1 min-w-[120px] py-2 px-3 rounded-xl text-left transition-all flex flex-col gap-0.5 ${
+          active 
+            ? 'bg-gradient-to-r from-sky-500/20 to-sky-600/10 border border-sky-500/50 text-white shadow-lg shadow-sky-500/10' 
+            : 'bg-slate-950/60 hover:bg-slate-800/60 border border-slate-800 text-slate-400'
+        }`;
+        
+        btn.innerHTML = `
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-bold uppercase tracking-wider ${active ? 'text-sky-400' : 'text-slate-500'}">Day ${day.dayNum}</span>
+            <span class="text-[10px] ${active ? 'text-sky-200' : 'text-slate-400'}">${day.date.split(',')[0]}</span>
+          </div>
+          <span class="text-xs font-bold truncate ${active ? 'text-slate-100' : 'text-slate-300'}">${day.title.split('—')[0]}</span>
+        `;
+
+        btn.onclick = () => selectDay(day.dayNum);
+        container.appendChild(btn);
+      });
+    }
+
+    function renderDayDetails() {
+      const day = TRIP_DATA[currentDay];
+      
+      document.getElementById('dayBadge').innerText = `Day ${day.dayNum}`;
+      document.getElementById('dayDate').innerText = day.date;
+      document.getElementById('dayTitle').innerText = day.title;
+      document.getElementById('dayThemeDesc').innerText = day.themeDesc;
+      document.getElementById('metricDistance').innerText = day.totalDistance;
+      document.getElementById('metricDriveTime').innerText = day.totalDriveTime;
+      document.getElementById('metricStops').innerText = `${day.stops.length} Stops`;
+
+      // Update Slider limits
+      document.getElementById('sliderStartTime').innerText = minutesToTimeString(day.startMinutes);
+      document.getElementById('sliderEndTime').innerText = minutesToTimeString(day.endMinutes);
+      document.getElementById('simTimeSlider').value = 0;
+      simCurrentMinutes = day.startMinutes;
+      updateSimulationHUD(simCurrentMinutes);
+
+      // Render timeline stops
+      const timelineContainer = document.getElementById('stopsTimelineContainer');
+      timelineContainer.innerHTML = '';
+
+      day.stops.forEach((stop, idx) => {
+        const item = document.createElement('div');
+        item.id = `stop-card-${idx}`;
+        item.className = "p-3 rounded-xl bg-slate-950/70 border border-slate-800 transition-all flex flex-col gap-2 relative overflow-hidden group hover:border-slate-700";
+        
+        item.innerHTML = `
+          <div class="flex items-start justify-between gap-2">
+            <div class="flex items-center gap-2">
+              <span class="w-6 h-6 rounded-lg bg-sky-500/10 border border-sky-500/30 text-sky-400 font-bold text-xs flex items-center justify-center shrink-0">
+                ${idx + 1}
+              </span>
+              <div>
+                <h4 class="font-bold text-xs sm:text-sm text-slate-100 group-hover:text-sky-300 transition-colors">${stop.name}</h4>
+                <span class="text-[10px] text-slate-400 block">${stop.type}</span>
+              </div>
+            </div>
+            <span class="text-[11px] font-mono font-semibold text-amber-400 bg-amber-950/40 px-2 py-0.5 rounded border border-amber-500/20 whitespace-nowrap">
+              ${stop.timeSlot}
+            </span>
+          </div>
+
+          <div class="flex flex-wrap items-center gap-3 text-[11px] text-slate-400 pt-1 border-t border-slate-800/60">
+            <span class="flex items-center gap-1">
+              <i data-lucide="clock" class="w-3 h-3 text-sky-400"></i> ${stop.duration}
+            </span>
+            ${stop.distanceFromPrev !== "0 km" ? `
+              <span class="flex items-center gap-1">
+                <i data-lucide="navigation" class="w-3 h-3 text-emeraldGoa"></i> ${stop.distanceFromPrev} (${stop.driveTimeTo})
+              </span>
+            ` : ''}
+          </div>
+
+          <p class="text-[11px] text-slate-300 bg-slate-900/60 p-2 rounded-lg border border-slate-800/70 flex items-start gap-1.5">
+            <i data-lucide="info" class="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5"></i>
+            <span>${stop.tip}</span>
+          </p>
+        `;
+
+        timelineContainer.appendChild(item);
+      });
+
+      lucide.createIcons();
+    }
+
+    function selectDay(dayNum) {
+      if (isPlaying) togglePlay();
+      currentDay = dayNum;
+      renderDayTabs();
+      renderDayDetails();
+      renderDayOnMap(dayNum);
+    }
+
+    // ==========================================
+    // SIMULATION ENGINE (INTERPOLATION & TELEMETRY)
+    // ==========================================
+    function updateSimulationHUD(currentMins) {
+      const day = TRIP_DATA[currentDay];
+      const stops = day.stops;
+      const timeStr = minutesToTimeString(currentMins);
+      document.getElementById('hudTime').innerText = timeStr;
+      document.getElementById('sliderCurrentTimeDisplay').innerText = timeStr;
+
+      let activeStopIdx = 0;
+      let isResting = true;
+      let statusText = "At Checkpoint";
+      let statusBadgeLabel = "Rest / Activity";
+      let currentLat = stops[0].lat;
+      let currentLng = stops[0].lng;
+      let currentDistTraveled = 0;
+
+      // Compute distance traveled up to current state
+      function getStopCumulativeDist(stopIndex) {
+        let sum = 0;
+        for (let s = 1; s <= stopIndex; s++) {
+          sum += parseFloat(stops[s].distanceFromPrev) || 0;
+        }
+        return sum;
+      }
+
+      // Check where currentMins falls among checkpoints and transit legs
+      if (currentMins <= stops[0].startTimeMin) {
+        // Before or right at trip start
+        activeStopIdx = 0;
+        isResting = true;
+        currentLat = stops[0].lat;
+        currentLng = stops[0].lng;
+        statusText = `At Base: ${stops[0].name}`;
+        statusBadgeLabel = "At Base";
+        currentDistTraveled = 0;
+      } else if (currentMins >= stops[stops.length - 1].startTimeMin) {
+        // At the final destination/hotel
+        activeStopIdx = stops.length - 1;
+        isResting = true;
+        currentLat = stops[stops.length - 1].lat;
+        currentLng = stops[stops.length - 1].lng;
+        statusText = `At Destination: ${stops[stops.length - 1].name} (${stops[stops.length - 1].tip})`;
+        statusBadgeLabel = "Rest / Completed";
+        currentDistTraveled = getStopCumulativeDist(stops.length - 1);
+      } else {
+        // Evaluate each stop and transit leg
+        for (let i = 0; i < stops.length; i++) {
+          const curStop = stops[i];
+
+          // Check if currently resting/enjoying this checkpoint
+          if (currentMins >= curStop.startTimeMin && currentMins <= curStop.endTimeMin) {
+            activeStopIdx = i;
+            isResting = true;
+            currentLat = curStop.lat;
+            currentLng = curStop.lng;
+            statusText = `Enjoying: ${curStop.name} (${curStop.type})`;
+            statusBadgeLabel = "Rest / Exploring";
+            currentDistTraveled = getStopCumulativeDist(i);
+            break;
+          }
+
+          // Check if driving between this stop and the next stop
+          if (i < stops.length - 1) {
+            const nextStop = stops[i + 1];
+            if (currentMins > curStop.endTimeMin && currentMins < nextStop.startTimeMin) {
+              activeStopIdx = i + 1;
+              isResting = false;
+              const legSpan = nextStop.startTimeMin - curStop.endTimeMin;
+              const legProgress = Math.max(0, Math.min(1, (currentMins - curStop.endTimeMin) / legSpan));
+
+              // Get highway path for this specific leg and interpolate at constant speed
+              const legPath = getLegRoadPath(currentDay, i, i + 1);
+              const pos = interpolateAlongPath(legPath, legProgress);
+              currentLat = pos[0];
+              currentLng = pos[1];
+
+              statusText = `Driving: Heading to ${nextStop.name}`;
+              statusBadgeLabel = "Driving to Stop";
+
+              const prevTotal = getStopCumulativeDist(i);
+              const legKm = parseFloat(nextStop.distanceFromPrev) || 5;
+              currentDistTraveled = prevTotal + (legKm * legProgress);
+              break;
+            }
+          }
+        }
+      }
+
+      // Update HUD Displays
+      document.getElementById('hudDistance').innerText = `${currentDistTraveled.toFixed(1)} km`;
+      document.getElementById('hudLocation').innerText = statusText;
+      
+      const badge = document.getElementById('hudStatusBadge');
+      if (isResting) {
+        badge.innerText = statusBadgeLabel;
+        badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-950 border border-emerald-500/40 text-emerald-300";
+      } else {
+        badge.innerText = statusBadgeLabel;
+        badge.className = "px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-amber-950 border border-amber-500/40 text-amber-300";
+      }
+
+      // Update car marker visual position & rest glow
+      if (carMarker) {
+        carMarker.setLatLng([currentLat, currentLng]);
+        const markerEl = carMarker.getElement();
+        if (markerEl) {
+          const container = markerEl.querySelector('.car-marker-container');
+          if (container) {
+            if (isResting) {
+              container.classList.add('resting');
+            } else {
+              container.classList.remove('resting');
+            }
+          }
+        }
+      }
+
+      // Highlight active stop in the right timeline list
+      stops.forEach((_, idx) => {
+        const card = document.getElementById(`stop-card-${idx}`);
+        if (!card) return;
+        if (idx === activeStopIdx) {
+          card.classList.add('border-sky-500', 'bg-sky-950/30');
+          card.classList.remove('border-slate-800');
+        } else {
+          card.classList.remove('border-sky-500', 'bg-sky-950/30');
+          card.classList.add('border-slate-800');
+        }
+      });
+    }
+
+    // Animation Loop
+    function simLoop(timestamp) {
+      if (!lastTimestamp) lastTimestamp = timestamp;
+      const deltaTime = (timestamp - lastTimestamp) / 1000;
+      lastTimestamp = timestamp;
+
+      const day = TRIP_DATA[currentDay];
+      const minutesPerSecond = 20 * simSpeed; // base: 20 sim minutes per real second
+      
+      simCurrentMinutes += deltaTime * minutesPerSecond;
+
+      if (simCurrentMinutes >= day.endMinutes) {
+        simCurrentMinutes = day.endMinutes;
+        togglePlay(false); // Stop simulation at end
+      }
+
+      // Update slider value
+      const totalSpan = day.endMinutes - day.startMinutes;
+      const progressPercent = ((simCurrentMinutes - day.startMinutes) / totalSpan) * 100;
+      document.getElementById('simTimeSlider').value = progressPercent;
+
+      updateSimulationHUD(simCurrentMinutes);
+
+      if (isPlaying) {
+        animRequest = requestAnimationFrame(simLoop);
+      }
+    }
+
+    function togglePlay(forceState) {
+      isPlaying = forceState !== undefined ? forceState : !isPlaying;
+      const btn = document.getElementById('simPlayBtn');
+      if (!btn) return;
+
+      if (isPlaying) {
+        const day = TRIP_DATA[currentDay];
+        if (simCurrentMinutes >= day.endMinutes) {
+          simCurrentMinutes = day.startMinutes;
+        }
+        lastTimestamp = null;
+        animRequest = requestAnimationFrame(simLoop);
+        btn.innerHTML = `<i data-lucide="pause" class="w-4 h-4 fill-slate-950"></i><span id="simPlayText">Pause</span>`;
+      } else {
+        cancelAnimationFrame(animRequest);
+        btn.innerHTML = `<i data-lucide="play" class="w-4 h-4 fill-slate-950"></i><span id="simPlayText">Simulate Drive</span>`;
+      }
+      lucide.createIcons();
+    }
+
+    function resetSimulation() {
+      if (isPlaying) togglePlay(false);
+      const day = TRIP_DATA[currentDay];
+      simCurrentMinutes = day.startMinutes;
+      document.getElementById('simTimeSlider').value = 0;
+      updateSimulationHUD(simCurrentMinutes);
+    }
+
+    // ==========================================
+    // EVENT LISTENERS & SETUP
+    // ==========================================
+    window.onload = function() {
+      initMap();
+      renderDayTabs();
+      renderDayDetails();
+      renderDayOnMap(currentDay);
+
+      // Play/Pause button
+      document.getElementById('simPlayBtn').addEventListener('click', () => togglePlay());
+
+      // Reset button
+      document.getElementById('simResetBtn').addEventListener('click', resetSimulation);
+
+      // Speed selection buttons
+      document.querySelectorAll('.speed-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          document.querySelectorAll('.speed-btn').forEach(b => {
+            b.classList.remove('bg-slate-800', 'text-sky-400');
+            b.classList.add('text-slate-400');
+          });
+          e.target.classList.add('bg-slate-800', 'text-sky-400');
+          e.target.classList.remove('text-slate-400');
+          simSpeed = parseFloat(e.target.dataset.speed);
+        });
+      });
+
+      // Time Slider scrubber
+      const slider = document.getElementById('simTimeSlider');
+      slider.addEventListener('input', (e) => {
+        if (isPlaying) togglePlay(false);
+        const day = TRIP_DATA[currentDay];
+        const percent = parseFloat(e.target.value);
+        const totalSpan = day.endMinutes - day.startMinutes;
+        simCurrentMinutes = day.startMinutes + (percent / 100) * totalSpan;
+        updateSimulationHUD(simCurrentMinutes);
+      });
+
+      lucide.createIcons();
+    };
+  </script>
+</body>
+</html>
